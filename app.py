@@ -122,7 +122,7 @@ def refresh_threads_token(current_token, state):
 
 def create_threads_container(user_id, token, media_type, text=None, media_url=None, is_carousel_item=False):
     """Helper function to create a Threads media or text container."""
-    url = f"https://graph.threads.net/v1.0/{user_id}/threads"
+    url = "https://graph.threads.net/v1.0/me/threads"
     payload = {
         "media_type": media_type,
         "access_token": token
@@ -144,7 +144,7 @@ def create_threads_container(user_id, token, media_type, text=None, media_url=No
 
 def publish_threads_container(user_id, token, creation_id):
     """Publish a created container on Threads."""
-    url = f"https://graph.threads.net/v1.0/{user_id}/threads_publish"
+    url = "https://graph.threads.net/v1.0/me/threads_publish"
     payload = {
         "creation_id": creation_id,
         "access_token": token
@@ -155,9 +155,9 @@ def publish_threads_container(user_id, token, creation_id):
 
 def post_to_threads(fb_post, token):
     """Format and post Facebook page content to Threads."""
-    user_id = config.THREADS_USER_ID
-    if not user_id or not token:
-        print("Error: THREADS_USER_ID or THREADS_ACCESS_TOKEN is missing.")
+    user_id = "me"
+    if not token:
+        print("Error: THREADS_ACCESS_TOKEN is missing.")
         return False
 
     caption = fb_post.get("message", "")
@@ -189,7 +189,7 @@ def post_to_threads(fb_post, token):
                 carousel_item_ids.append(item_id)
                 
             # Create the main carousel container
-            url = f"https://graph.threads.net/v1.0/{user_id}/threads"
+            url = "https://graph.threads.net/v1.0/me/threads"
             payload = {
                 "media_type": "CAROUSEL",
                 "children": ",".join(carousel_item_ids),
