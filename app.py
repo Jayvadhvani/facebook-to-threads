@@ -274,13 +274,19 @@ def main():
         save_state(state) # Save potential token refresh updates
         return
         
-    last_fb_post_id = state.get("last_fb_post_id")
+    # Load published IDs list for filtering
+    published_ids = state.get("published_fb_post_ids", [])
     
+    # Migration/Fallback for older state files
+    if not published_ids and state.get("last_fb_post_id"):
+        published_ids = [state.get("last_fb_post_id")]
+        
     # Find which posts are new (have not been published yet)
     new_posts = []
     for post in posts:
-        if post.get("id") == last_fb_post_id:
-            break
+        post_id = post.get("id")
+        if post_id in published_ids:
+            continue
         new_posts.append(post)
         
     if not new_posts:
@@ -296,7 +302,13 @@ def main():
         print(f"Publishing Facebook post ID to Threads: {post_id}")
         success = post_to_threads(fb_post, threads_token)
         if success:
+            # Add to list of published IDs
+            if post_id not in published_ids:
+                published_ids.append(post_id)
+            # Keep list size reasonable (last 100 posts)
+            state["published_fb_post_ids"] = published_ids[-100:]
             state["last_fb_post_id"] = post_id
+            
             # Save state after each successful post to prevent duplicate posting if a later post fails
             save_state(state)
             # Sleep briefly between posts if there are multiple
