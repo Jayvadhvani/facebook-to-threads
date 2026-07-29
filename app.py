@@ -38,7 +38,7 @@ def get_latest_fb_posts():
     params = {
         "fields": "id,message,created_time,attachments{media,media_type,subattachments}",
         "access_token": config.FB_PAGE_ACCESS_TOKEN,
-        "limit": 5 # Look at the last 5 posts to handle edge cases
+        "limit": 20 # Look at the last 20 posts to handle backlogs
     }
     
     try:
