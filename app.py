@@ -161,6 +161,10 @@ def post_to_threads(fb_post, token):
         return False
 
     caption = fb_post.get("message", "")
+    if len(caption) > 500:
+        print("Caption exceeds 500 characters. Truncating for Threads...")
+        caption = caption[:497] + "..."
+        
     media_urls = extract_media_urls(fb_post)
     
     try:
