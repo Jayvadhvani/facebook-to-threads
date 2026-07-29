@@ -27,11 +27,11 @@ def save_state(state):
     except Exception as e:
         print(f"Error saving state file: {e}")
 
-def get_latest_fb_post():
-    """Fetch the latest post from the Facebook Page."""
+def get_latest_fb_posts():
+    """Fetch the latest posts from the Facebook Page."""
     if not config.FB_PAGE_ID or not config.FB_PAGE_ACCESS_TOKEN:
         print("Error: FB_PAGE_ID or FB_PAGE_ACCESS_TOKEN is missing in environment.")
-        return None
+        return []
 
     # We fetch the feed. We request message (caption), attachments (images), and created_time.
     url = f"https://graph.facebook.com/v20.0/{config.FB_PAGE_ID}/posts"
@@ -48,16 +48,12 @@ def get_latest_fb_post():
         data = response.json()
         posts = data.get("data", [])
         print(f"Number of posts retrieved from Facebook: {len(posts)}")
-        if posts:
-            # Return the latest post
-            return posts[0]
-        else:
-            print("Facebook feed returned 0 posts. Ensure the page has public posts published.")
+        return posts
     except Exception as e:
         print(f"Error fetching Facebook feed: {e}")
         if 'response' in locals() and response is not None:
             print(f"Facebook API response body: {response.text}")
-    return None
+    return []
 
 def extract_media_urls(fb_post):
     """Extract public image URLs from the Facebook post attachments."""
@@ -233,6 +229,7 @@ def post_to_threads(fb_post, token):
             response = requests.post(url, data=payload)
             response.raise_for_status()
             container_id = response.json().get("id")
+ 
 
         if container_id:
             # Wait a few seconds for processing (recommended by Meta for media posts)
@@ -270,28 +267,44 @@ def main():
     # Ensure the token is set in state for future runs
     state["threads_access_token"] = threads_token
         
-    # Get latest Facebook Page post
-    fb_post = get_latest_fb_post()
-    if not fb_post:
+    # Get latest Facebook Page posts
+    posts = get_latest_fb_posts()
+    if not posts:
         print("No Facebook posts found or error occurred.")
         save_state(state) # Save potential token refresh updates
         return
         
-    post_id = fb_post.get("id")
-    print(f"Latest Facebook post ID: {post_id}")
+    last_fb_post_id = state.get("last_fb_post_id")
     
-    # Check for duplicates
-    if state.get("last_fb_post_id") == post_id:
-        print("This post has already been published to Threads. Skipping.")
-        save_state(state) # Save potential token refresh updates
+    # Find which posts are new (have not been published yet)
+    new_posts = []
+    for post in posts:
+        if post.get("id") == last_fb_post_id:
+            break
+        new_posts.append(post)
+        
+    if not new_posts:
+        print("No new posts to publish. Skipping.")
+        save_state(state)
         return
         
-    # Post to Threads
-    success = post_to_threads(fb_post, threads_token)
-    if success:
-        state["last_fb_post_id"] = post_id
-        
-    save_state(state)
+    print(f"Found {len(new_posts)} new post(s) to publish.")
+    
+    # Post them in chronological order (oldest first)
+    for fb_post in reversed(new_posts):
+        post_id = fb_post.get("id")
+        print(f"Publishing Facebook post ID to Threads: {post_id}")
+        success = post_to_threads(fb_post, threads_token)
+        if success:
+            state["last_fb_post_id"] = post_id
+            # Save state after each successful post to prevent duplicate posting if a later post fails
+            save_state(state)
+            # Sleep briefly between posts if there are multiple
+            if len(new_posts) > 1:
+                time.sleep(10)
+        else:
+            print(f"Failed to publish post {post_id}. Stopping execution to avoid skipping.")
+            break
 
 if __name__ == "__main__":
     main()
