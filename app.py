@@ -9,14 +9,14 @@ import config
 STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "last_post.json")
 
 def load_state():
-    """Load the last posted Facebook post ID and last token refresh timestamp."""
+    """Load the last posted Facebook post ID, tokens, and refresh timestamp."""
     if os.path.exists(STATE_FILE):
         try:
             with open(STATE_FILE, 'r') as f:
                 return json.load(f)
         except Exception as e:
             print(f"Error loading state file: {e}")
-    return {"last_fb_post_id": "", "last_token_refresh_time": 0}
+    return {"last_fb_post_id": "", "last_token_refresh_time": 0, "threads_access_token": ""}
 
 def save_state(state):
     """Save the current state to last_post.json."""
@@ -77,13 +77,13 @@ def extract_media_urls(fb_post):
 def refresh_threads_token(current_token, state):
     """
     Refresh the long-lived Threads Access Token if 7 days have passed since the last refresh.
-    Then, update the variable in GitHub Secrets/Variables if GITHUB_TOKEN is available.
+    Saves the refreshed token to state so it gets committed back to the repository.
     """
     current_time = int(time.time())
     seven_days = 7 * 24 * 60 * 60
     
     last_refresh = state.get("last_token_refresh_time", 0)
-    if current_time - last_refresh < seven_days:
+    if last_refresh > 0 and (current_time - last_refresh < seven_days):
         print("Threads access token is still fresh. Skipping refresh.")
         return current_token
 
@@ -107,40 +107,12 @@ def refresh_threads_token(current_token, state):
         if new_token:
             print("Successfully refreshed Threads token.")
             state["last_token_refresh_time"] = current_time
-            
-            # If we are running in GitHub Actions, let's update the Repository Variable
-            if config.GITHUB_REPOSITORY and config.GITHUB_TOKEN:
-                update_github_variable(new_token)
-            else:
-                print("Local run detected or GITHUB_TOKEN not available. Token updated locally.")
-                
+            state["threads_access_token"] = new_token
             return new_token
     except Exception as e:
         print(f"Error refreshing Threads access token: {e}")
         
     return current_token
-
-def update_github_variable(new_token):
-    """Update the THREADS_ACCESS_TOKEN GitHub Repository Variable."""
-    url = f"https://api.github.com/repos/{config.GITHUB_REPOSITORY}/actions/variables/THREADS_ACCESS_TOKEN"
-    headers = {
-        "Authorization": f"Bearer {config.GITHUB_TOKEN}",
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28"
-    }
-    data = {
-        "name": "THREADS_ACCESS_TOKEN",
-        "value": new_token
-    }
-    
-    try:
-        res = requests.patch(url, headers=headers, json=data)
-        if res.status_code in [200, 204]:
-            print("Successfully updated THREADS_ACCESS_TOKEN Repository Variable in GitHub.")
-        else:
-            print(f"Failed to update GitHub Repository Variable. Code: {res.status_code}, Response: {res.text}")
-    except Exception as e:
-        print(f"Error updating GitHub variable: {e}")
 
 def create_threads_container(user_id, token, media_type, text=None, media_url=None, is_carousel_item=False):
     """Helper function to create a Threads media or text container."""
@@ -246,15 +218,21 @@ def main():
     print("Starting Facebook to Threads Auto Poster...")
     state = load_state()
     
-    # 1. Refresh Threads token if needed
-    threads_token = config.THREADS_ACCESS_TOKEN
-    if threads_token:
-        threads_token = refresh_threads_token(threads_token, state)
-    else:
-        print("Error: THREADS_ACCESS_TOKEN environment variable not set.")
+    # Use token from state first (since it refreshes and saves here).
+    # Fallback to the environment variable token if state is empty.
+    threads_token = state.get("threads_access_token") or config.THREADS_ACCESS_TOKEN
+    
+    if not threads_token:
+        print("Error: THREADS_ACCESS_TOKEN is not available in state or environment variables.")
         sys.exit(1)
         
-    # 2. Get latest Facebook Page post
+    # Refresh token if needed
+    threads_token = refresh_threads_token(threads_token, state)
+    
+    # Ensure the token is set in state for future runs
+    state["threads_access_token"] = threads_token
+        
+    # Get latest Facebook Page post
     fb_post = get_latest_fb_post()
     if not fb_post:
         print("No Facebook posts found or error occurred.")
@@ -264,13 +242,13 @@ def main():
     post_id = fb_post.get("id")
     print(f"Latest Facebook post ID: {post_id}")
     
-    # 3. Check for duplicates
+    # Check for duplicates
     if state.get("last_fb_post_id") == post_id:
         print("This post has already been published to Threads. Skipping.")
         save_state(state) # Save potential token refresh updates
         return
         
-    # 4. Post to Threads
+    # Post to Threads
     success = post_to_threads(fb_post, threads_token)
     if success:
         state["last_fb_post_id"] = post_id

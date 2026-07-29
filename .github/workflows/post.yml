@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: write    # Permission to commit changes to last_post.json
-  variables: write   # Permission to update THREADS_ACCESS_TOKEN variable
 
 jobs:
   run-poster:
@@ -33,9 +32,8 @@ jobs:
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
           FB_PAGE_ACCESS_TOKEN: ${{ secrets.FB_PAGE_ACCESS_TOKEN }}
           THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
-          THREADS_ACCESS_TOKEN: ${{ vars.THREADS_ACCESS_TOKEN }}
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
           THREADS_APP_SECRET: ${{ secrets.THREADS_APP_SECRET }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python app.py
 
       - name: Commit and push state changes
@@ -43,5 +41,5 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add last_post.json
-          git diff-index --quiet HEAD || git commit -m "chore: Update last posted ID [skip ci]"
+          git diff-index --quiet HEAD || git commit -m "chore: Update last posted ID and tokens [skip ci]"
           git push
