@@ -34,7 +34,7 @@ def get_latest_fb_post():
         return None
 
     # We fetch the feed. We request message (caption), attachments (images), and created_time.
-    url = f"https://graph.facebook.com/v20.0/{config.FB_PAGE_ID}/feed"
+    url = f"https://graph.facebook.com/v20.0/{config.FB_PAGE_ID}/posts"
     params = {
         "fields": "id,message,created_time,attachments{media,media_type,subattachments}",
         "access_token": config.FB_PAGE_ACCESS_TOKEN,
