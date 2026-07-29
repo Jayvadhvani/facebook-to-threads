@@ -43,14 +43,20 @@ def get_latest_fb_post():
     
     try:
         response = requests.get(url, params=params)
+        print(f"Facebook Graph API Response Status: {response.status_code}")
         response.raise_for_status()
         data = response.json()
         posts = data.get("data", [])
+        print(f"Number of posts retrieved from Facebook: {len(posts)}")
         if posts:
             # Return the latest post
             return posts[0]
+        else:
+            print("Facebook feed returned 0 posts. Ensure the page has public posts published.")
     except Exception as e:
         print(f"Error fetching Facebook feed: {e}")
+        if 'response' in locals() and response is not None:
+            print(f"Facebook API response body: {response.text}")
     return None
 
 def extract_media_urls(fb_post):
