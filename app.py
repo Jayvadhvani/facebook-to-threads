@@ -153,6 +153,38 @@ def publish_threads_container(user_id, token, creation_id):
     response.raise_for_status()
     return response.json().get("id")
 
+def format_caption_with_title_and_hashtags(caption):
+    """Extracts the first line (title) and all hashtags from the caption, combining them."""
+    if not caption:
+        return ""
+        
+    import re
+    lines = [line.strip() for line in caption.split('\n')]
+    # Find the first non-empty line
+    title = ""
+    for line in lines:
+        if line:
+            title = line
+            break
+            
+    # Extract all hashtags
+    hashtags = re.findall(r'#\w+', caption)
+    hashtag_str = " ".join(hashtags)
+    
+    # Combine title and hashtags
+    if title and hashtag_str:
+        formatted = f"{title}\n\n{hashtag_str}"
+    elif title:
+        formatted = title
+    else:
+        formatted = hashtag_str
+        
+    # Ensure it complies with the 500 character limit
+    if len(formatted) > 500:
+        formatted = formatted[:497] + "..."
+        
+    return formatted
+
 def post_to_threads(fb_post, token):
     """Format and post Facebook page content to Threads."""
     user_id = "me"
@@ -160,11 +192,7 @@ def post_to_threads(fb_post, token):
         print("Error: THREADS_ACCESS_TOKEN is missing.")
         return False
 
-    caption = fb_post.get("message", "")
-    if len(caption) > 500:
-        print("Caption exceeds 500 characters. Truncating for Threads...")
-        caption = caption[:497] + "..."
-        
+    caption = format_caption_with_title_and_hashtags(fb_post.get("message", ""))
     media_urls = extract_media_urls(fb_post)
     
     try:
